@@ -20,3 +20,9 @@ Fade mode (off by default) trades against each break instead. Filters: longs onl
 3. **Live:** only after sim matches the backtest. Start with 1 contract.
 
 Note: the drawdown halt and daily counters reset if the strategy is restarted.
+
+## MesVwapPullbackBot (v2 strategy)
+`Strategies/MesVwapPullbackBot.cs` trades pullbacks to today's VWAP in the trend direction, 9:45–11:00 ET.
+Long when VWAP is rising and a bar dips to VWAP then closes green above it; short is the mirror.
+Defaults: 1 MES, 8 pt stop, 12 pt target, max 3 trades/day, -$200 daily stop.
+(The original MesBreakoutBot failed out-of-sample testing and is kept for reference only.)
