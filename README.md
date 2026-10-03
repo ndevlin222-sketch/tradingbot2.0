@@ -7,7 +7,7 @@ NinjaTrader 8 strategy that trades MES breakouts in two windows (Eastern Time):
 
 Each trade uses 1 MES with a 10 pt stop ($50) and a 10 pt target ($50), and the position is flattened when the window ends.
 Limits: max 2 trades per window, 4 per day, stop for the day at -$200, halt at a 10% drawdown.
-Filters: longs only above VWAP, shorts only below it (VWAP from 9:30). Switches in the strategy settings turn the AM window, PM window, longs or shorts on and off.
+Fade mode (off by default) trades against each break instead. Filters: longs only above VWAP, shorts only below it (VWAP from 9:30). Switches in the strategy settings turn the AM window, PM window, longs or shorts on and off.
 
 ## Install
 1. Set NinjaTrader's time zone to Eastern (Tools > Options > General), or edit the time inputs.

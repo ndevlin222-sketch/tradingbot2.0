@@ -6,6 +6,7 @@
 // Times are in the time zone NinjaTrader is set to (Tools > Options > General).
 // Set it to Eastern Time, or change the time inputs to match your zone.
 //
+// Fade mode (off by default) takes the opposite side of each break instead.
 // Filters: breakouts only in the direction of today's VWAP (from 9:30), and
 // on/off switches for each window and direction so each piece can be tested alone.
 //
@@ -62,6 +63,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 				MaxDrawdownPercent = 10;
 
 				UseVwapFilter = true;
+				FadeBreakouts = false;
 				TradeAm       = true;
 				TradePm       = true;
 				AllowLongs    = true;
@@ -167,23 +169,26 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (rangeHigh == double.MinValue || rangeLow == double.MaxValue)
 				return false;  // range never formed (holiday, missing data)
 
-			double vwap = cumVolume > 0 ? cumPriceVolume / cumVolume : Close[0];
-			bool longOk  = AllowLongs  && (!UseVwapFilter || Close[0] > vwap);
-			bool shortOk = AllowShorts && (!UseVwapFilter || Close[0] < vwap);
+			bool breakUp   = Close[0] > rangeHigh && Close[1] <= rangeHigh;
+			bool breakDown = Close[0] < rangeLow && Close[1] >= rangeLow;
+			if (!breakUp && !breakDown)
+				return false;
 
-			if (longOk && Close[0] > rangeHigh && Close[1] <= rangeHigh)
-			{
+			// Fade mode trades against the break (sell a break up, buy a break down).
+			bool goLong = FadeBreakouts ? breakDown : breakUp;
+
+			// The VWAP filter only applies to breakout mode.
+			double vwap = cumVolume > 0 ? cumPriceVolume / cumVolume : Close[0];
+			bool vwapOk = FadeBreakouts || !UseVwapFilter || (goLong ? Close[0] > vwap : Close[0] < vwap);
+			if (!vwapOk || (goLong && !AllowLongs) || (!goLong && !AllowShorts))
+				return false;
+
+			if (goLong)
 				EnterLong(Contracts, tag + "Long");
-				tradesToday++;
-				return true;
-			}
-			if (shortOk && Close[0] < rangeLow && Close[1] >= rangeLow)
-			{
+			else
 				EnterShort(Contracts, tag + "Short");
-				tradesToday++;
-				return true;
-			}
-			return false;
+			tradesToday++;
+			return true;
 		}
 
 		#region Properties
@@ -222,6 +227,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[NinjaScriptProperty]
 		[Display(Name = "Only trade with VWAP", Order = 6, GroupName = "2. Risk")]
 		public bool UseVwapFilter { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Fade breakouts (trade against the break)", Order = 7, GroupName = "2. Risk")]
+		public bool FadeBreakouts { get; set; }
 
 		[NinjaScriptProperty]
 		[Display(Name = "Trade AM window", Order = 1, GroupName = "4. Switches")]
