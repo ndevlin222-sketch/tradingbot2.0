@@ -6,6 +6,9 @@
 // Times are in the time zone NinjaTrader is set to (Tools > Options > General).
 // Set it to Eastern Time, or change the time inputs to match your zone.
 //
+// Filters: breakouts only in the direction of today's VWAP (from 9:30), and
+// on/off switches for each window and direction so each piece can be tested alone.
+//
 // Run on a 1-minute MES chart. Test in Strategy Analyzer and Sim101 before going live.
 
 #region Using declarations
@@ -32,6 +35,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 		private double amHigh, amLow;
 		private double pmHigh, pmLow;
 
+		private double cumPriceVolume, cumVolume;  // for session VWAP from AmRangeStart
+
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)
@@ -49,12 +54,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 				Contracts          = 1;
 				StopPoints         = 10;
-				TargetPoints       = 20;
+				TargetPoints       = 10;
 				MaxTradesPerWindow = 2;
 				MaxTradesPerDay    = 4;
 				DailyLossLimit     = 200;
 				StartingCapital    = 10000;
 				MaxDrawdownPercent = 10;
+
+				UseVwapFilter = true;
+				TradeAm       = true;
+				TradePm       = true;
+				AllowLongs    = true;
+				AllowShorts   = true;
 
 				AmRangeStart = 93000;  AmRangeEnd = 94500;  AmTradeEnd = 110000;
 				PmRangeStart = 113000; PmRangeEnd = 130000; PmTradeEnd = 140000;
@@ -106,12 +117,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 				return;
 
 			// No new entries on a window's last bar, since the fill would land after the window closes.
-			if (inAmWindow && t < AmTradeEnd && amTrades < MaxTradesPerWindow)
+			if (TradeAm && inAmWindow && t < AmTradeEnd && amTrades < MaxTradesPerWindow)
 			{
 				if (TryBreakout(amHigh, amLow, "AM"))
 					amTrades++;
 			}
-			else if (inPmWindow && t < PmTradeEnd && pmTrades < MaxTradesPerWindow)
+			else if (TradePm && inPmWindow && t < PmTradeEnd && pmTrades < MaxTradesPerWindow)
 			{
 				if (TryBreakout(pmHigh, pmLow, "PM"))
 					pmTrades++;
@@ -127,10 +138,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 			pmTrades       = 0;
 			amHigh = pmHigh = double.MinValue;
 			amLow  = pmLow  = double.MaxValue;
+			cumPriceVolume = 0;
+			cumVolume      = 0;
 		}
 
 		private void UpdateRanges(int t)
 		{
+			if (t > AmRangeStart)
+			{
+				cumPriceVolume += (High[0] + Low[0] + Close[0]) / 3 * Volume[0];
+				cumVolume      += Volume[0];
+			}
 			if (t > AmRangeStart && t <= AmRangeEnd)
 			{
 				amHigh = Math.Max(amHigh, High[0]);
@@ -149,13 +167,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (rangeHigh == double.MinValue || rangeLow == double.MaxValue)
 				return false;  // range never formed (holiday, missing data)
 
-			if (Close[0] > rangeHigh && Close[1] <= rangeHigh)
+			double vwap = cumVolume > 0 ? cumPriceVolume / cumVolume : Close[0];
+			bool longOk  = AllowLongs  && (!UseVwapFilter || Close[0] > vwap);
+			bool shortOk = AllowShorts && (!UseVwapFilter || Close[0] < vwap);
+
+			if (longOk && Close[0] > rangeHigh && Close[1] <= rangeHigh)
 			{
 				EnterLong(Contracts, tag + "Long");
 				tradesToday++;
 				return true;
 			}
-			if (Close[0] < rangeLow && Close[1] >= rangeLow)
+			if (shortOk && Close[0] < rangeLow && Close[1] >= rangeLow)
 			{
 				EnterShort(Contracts, tag + "Short");
 				tradesToday++;
@@ -196,6 +218,26 @@ namespace NinjaTrader.NinjaScript.Strategies
 		[NinjaScriptProperty, Range(1, 100)]
 		[Display(Name = "Max drawdown (%)", Order = 5, GroupName = "2. Risk")]
 		public double MaxDrawdownPercent { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Only trade with VWAP", Order = 6, GroupName = "2. Risk")]
+		public bool UseVwapFilter { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Trade AM window", Order = 1, GroupName = "4. Switches")]
+		public bool TradeAm { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Trade PM window", Order = 2, GroupName = "4. Switches")]
+		public bool TradePm { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Allow longs", Order = 3, GroupName = "4. Switches")]
+		public bool AllowLongs { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Allow shorts", Order = 4, GroupName = "4. Switches")]
+		public bool AllowShorts { get; set; }
 
 		[NinjaScriptProperty]
 		[Display(Name = "AM range start (HHmmss)", Order = 1, GroupName = "3. Times")]
