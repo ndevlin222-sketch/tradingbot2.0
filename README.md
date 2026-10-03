@@ -26,3 +26,8 @@ Note: the drawdown halt and daily counters reset if the strategy is restarted.
 Long when VWAP is rising and a bar dips to VWAP then closes green above it; short is the mirror.
 Defaults: 1 MES, 8 pt stop, 12 pt target, max 3 trades/day, -$200 daily stop.
 (The original MesBreakoutBot failed out-of-sample testing and is kept for reference only.)
+
+## MesCloseMomentumBot (Sim101 forward test)
+`Strategies/MesCloseMomentumBot.cs`: at 15:30 ET, if MES is 10+ pts away from the 9:30 open, trade that direction; 10 pt stop; exit 15:59. One trade per day.
+Backtest (Oct 2025–Sep 2026, $1.24 RT + 1 tick slippage): tuning months PF 0.80, unseen Jun–Sep PF 1.13 on 39 trades. Not proven; running on Sim101 to collect live evidence.
+The breakout, VWAP pullback, gap fill, VWAP band and prior-day level ideas all failed out-of-sample.
