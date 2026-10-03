@@ -1,7 +1,7 @@
 // MesCloseMomentumBot - NinjaTrader 8 strategy for MES (Micro E-mini S&P 500).
 //
-// Intraday momentum into the close: at 15:30, if MES has moved at least MinMovePoints
-// from the 9:30 open, trade in that direction and exit at 15:59. One trade per day.
+// Intraday momentum into the close: if MES moved at least MinMovePoints from the 9:30 open
+// to 10:00, trade in that direction at 15:30 and exit at 15:59. One trade per day.
 //
 // Times are in the time zone NinjaTrader is set to (Tools > Options > General).
 // Run on a 1-minute MES chart with the Sim101 account until it proves itself.
@@ -20,6 +20,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 	{
 		private DateTime currentDay = DateTime.MinValue;
 		private double dayOpen;          // first trade price of the RTH session (9:30)
+		private double morningMove;      // 9:30 open to 10:00 close, set at 10:00
 		private bool tradedToday;
 		private double peakProfit;
 		private bool haltedForDrawdown;
@@ -29,7 +30,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (State == State.SetDefaults)
 			{
 				Name                         = "MesCloseMomentumBot";
-				Description                  = "MES intraday momentum: trade the day's direction from 15:30 to 15:59.";
+				Description                  = "MES intraday momentum: trade the 9:30-10:00 direction from 15:30 to 15:59.";
 				Calculate                    = Calculate.OnBarClose;
 				EntriesPerDirection          = 1;
 				EntryHandling                = EntryHandling.AllEntries;
@@ -45,7 +46,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 				StartingCapital    = 10000;
 				MaxDrawdownPercent = 10;
 
-				OpenTime  = 93000;
+				OpenTime   = 93000;
+				SignalTime = 100000;
 				EntryTime = 153000;
 				ExitTime  = 155900;
 			}
@@ -68,11 +70,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 			{
 				currentDay  = Time[0].Date;
 				dayOpen     = 0;
+				morningMove = 0;
 				tradedToday = false;
 			}
 
 			if (dayOpen == 0 && t > OpenTime)
 				dayOpen = Open[0];
+			if (t == SignalTime && dayOpen != 0)
+				morningMove = Close[0] - dayOpen;
 
 			// Drawdown guard: stop trading for good if equity falls MaxDrawdownPercent below its peak.
 			double realized = SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
@@ -92,13 +97,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (Position.MarketPosition != MarketPosition.Flat)
 				return;
 
-			double move = Close[0] - dayOpen;
-			if (move >= MinMovePoints)
+			if (morningMove >= MinMovePoints)
 			{
 				EnterLong(Contracts, "MomLong");
 				tradedToday = true;
 			}
-			else if (move <= -MinMovePoints)
+			else if (morningMove <= -MinMovePoints)
 			{
 				EnterShort(Contracts, "MomShort");
 				tradedToday = true;
@@ -131,11 +135,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 		public int OpenTime { get; set; }
 
 		[NinjaScriptProperty]
-		[Display(Name = "Entry time", Order = 2, GroupName = "3. Times")]
+		[Display(Name = "Signal time (end of morning move)", Order = 2, GroupName = "3. Times")]
+		public int SignalTime { get; set; }
+
+		[NinjaScriptProperty]
+		[Display(Name = "Entry time", Order = 3, GroupName = "3. Times")]
 		public int EntryTime { get; set; }
 
 		[NinjaScriptProperty]
-		[Display(Name = "Exit time", Order = 3, GroupName = "3. Times")]
+		[Display(Name = "Exit time", Order = 4, GroupName = "3. Times")]
 		public int ExitTime { get; set; }
 		#endregion
 	}
